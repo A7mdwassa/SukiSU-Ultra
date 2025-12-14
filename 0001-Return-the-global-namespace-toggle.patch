@@ -1,0 +1,146 @@
+From 11344e90cbc54576b3685e5626af180283a8074f Mon Sep 17 00:00:00 2001
+From: A7mdwassa <ahmdwassam112@gmail.com>
+Date: Fri, 12 Dec 2025 23:41:00 +0200
+Subject: [PATCH 1/3] Return the global namespace toggle
+
+---
+ .../src/main/java/com/sukisu/ultra/Natives.kt |  5 ++++-
+ .../com/sukisu/ultra/ui/screen/Settings.kt    | 19 ++++++++++++++++++-
+ .../java/com/sukisu/ultra/ui/util/KsuCli.kt   | 13 +++++++++++++
+ manager/app/src/main/res/values/strings.xml   |  3 +++
+ userspace/ksud/src/defs.rs                    |  2 ++
+ userspace/ksud/src/su.rs                      |  5 ++++-
+ 6 files changed, 44 insertions(+), 3 deletions(-)
+
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/Natives.kt b/manager/app/src/main/java/com/sukisu/ultra/Natives.kt
+index db891da..9157eb4 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/Natives.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/Natives.kt
+@@ -67,6 +67,9 @@ object Natives {
+ 
+     val version: Int
+         external get
++    
++    val KSU_WORK_DIR = "/data/adb/ksu/"
++    val GLOBAL_NAMESPACE_FILE = KSU_WORK_DIR + ".global_mnt"
+ 
+     // get the uid list of allowed su processes.
+     val allowList: IntArray
+@@ -278,4 +281,4 @@ object Natives {
+ 
+         constructor() : this("")
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/ui/screen/Settings.kt b/manager/app/src/main/java/com/sukisu/ultra/ui/screen/Settings.kt
+index 4d254e4..636af54 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/ui/screen/Settings.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/ui/screen/Settings.kt
+@@ -74,6 +74,8 @@ private val SPACING_LARGE = 16.dp
+ fun SettingScreen(navigator: DestinationsNavigator) {
+     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
+     val snackBarHost = LocalSnackbarHost.current
++    var isGlobalNamespaceEnabled by rememberSaveable { mutableStateOf(false) }
++    isGlobalNamespaceEnabled = isGlobalNamespaceEnabled()
+     val context = LocalContext.current
+     val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+     var isSuLogEnabled by remember { mutableStateOf(Natives.isSuLogEnabled()) }
+@@ -133,7 +135,22 @@ fun SettingScreen(navigator: DestinationsNavigator) {
+                                 navigator.navigate(AppProfileTemplateScreenDestination)
+                             }
+                         )
+-
++                        SwitchItem(
++                           icon = Icons.Rounded.EnhancedEncryption,
++                           title = stringResource(id = R.string.settings_global_namespace_mode),
++                           summary = stringResource(id = R.string.settings_global_namespace_mode_summary),
++                           checked = isGlobalNamespaceEnabled,
++                           onCheckedChange = {
++                               setGlobalNamespaceEnabled(
++                                   if (isGlobalNamespaceEnabled) {
++                                       "0"
++                                   } else {
++                                       "1"
++                                   }
++                               )
++                               isGlobalNamespaceEnabled = it
++                           }
++                        )
+                         val modeItems = listOf(
+                             stringResource(id = R.string.settings_mode_default),
+                             stringResource(id = R.string.settings_mode_temp_enable),
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/ui/util/KsuCli.kt b/manager/app/src/main/java/com/sukisu/ultra/ui/util/KsuCli.kt
+index b1bf729..4ce8ef7 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/ui/util/KsuCli.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/ui/util/KsuCli.kt
+@@ -421,6 +421,19 @@ fun hasMagisk(): Boolean {
+     return result.isSuccess
+ }
+ 
++fun isGlobalNamespaceEnabled(): Boolean {
++    val result = ShellUtils.fastCmd("cat ${Natives.GLOBAL_NAMESPACE_FILE}")
++    Log.i(TAG, "is global namespace enabled: $result")
++    return result == "1"
++}
++
++fun setGlobalNamespaceEnabled(value: String) {
++    Shell.cmd("echo $value > ${Natives.GLOBAL_NAMESPACE_FILE}")
++        .submit { result ->
++            Log.i(TAG, "setGlobalNamespaceEnabled result: ${result.isSuccess} [${result.out}]")
++        }
++}
++
+ fun isSepolicyValid(rules: String?): Boolean {
+     if (rules == null) {
+         return true
+diff --git a/manager/app/src/main/res/values/strings.xml b/manager/app/src/main/res/values/strings.xml
+index 0f14c7c..2158704 100644
+--- a/manager/app/src/main/res/values/strings.xml
++++ b/manager/app/src/main/res/values/strings.xml
+@@ -48,6 +48,8 @@
+     <string name="safe_mode">Safe mode</string>
+     <string name="reboot_to_apply">Reboot to take effect</string>
+     <string name="module_magisk_conflict">Modules are unavailable due to a conflict with Magisk!</string>
++    <string name="settings_global_namespace_mode">Global Namespace Mode</string>
++    <string name="settings_global_namespace_mode_summary">All root sessions use the global mount namespace</string>
+     <string name="home_learn_kernelsu">Learn KernelSU</string>
+     <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+     <string name="home_click_to_learn_kernelsu">Learn how to install KernelSU and use modules</string>
+@@ -729,3 +731,4 @@ Important Note:\n
+     <string name="settings_disable_sulog">Disable superuser logging</string>
+     <string name="settings_disable_sulog_summary">Disable KernelSU superuser access logging</string>
+ </resources>
++
+diff --git a/userspace/ksud/src/defs.rs b/userspace/ksud/src/defs.rs
+index e923a85..714755c 100644
+--- a/userspace/ksud/src/defs.rs
++++ b/userspace/ksud/src/defs.rs
+@@ -41,6 +41,8 @@ mod android {
+     pub const KSU_BACKUP_FILE_PREFIX: &str = "ksu_backup_";
+     pub const BACKUP_FILENAME: &str = "stock_image.sha1";
+     pub const UMOUNT_CONFIG_PATH: &str = concatcp!(WORKING_DIR, ".umount");
++
++    pub const GLOBAL_NAMESPACE_FILE: &str = concatcp!(WORKING_DIR, ".global_mnt");
+ }
+ 
+ pub const VERSION_CODE: &str = include_str!(concat!(env!("OUT_DIR"), "/VERSION_CODE"));
+diff --git a/userspace/ksud/src/su.rs b/userspace/ksud/src/su.rs
+index e767466..c430053 100644
+--- a/userspace/ksud/src/su.rs
++++ b/userspace/ksud/src/su.rs
+@@ -267,7 +267,10 @@ pub fn root_shell() -> Result<()> {
+             utils::switch_cgroups();
+ 
+             // switch to global mount namespace
+-            if mount_master {
++            #[cfg(any(target_os = "linux", target_os = "android"))]
++            let global_namespace_enable = std::fs::read_to_string(defs::GLOBAL_NAMESPACE_FILE)
++                .unwrap_or_else(|_| "0".to_string());
++            if global_namespace_enable.trim() == "1" || mount_master {
+                 let _ = utils::switch_mnt_ns(1);
+             }
+ 
+-- 
+2.51.0
+
