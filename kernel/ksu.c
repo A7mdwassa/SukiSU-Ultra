@@ -5,7 +5,7 @@
 #include <generated/utsrelease.h>
 #include <generated/compile.h>
 #include <linux/version.h> /* LINUX_VERSION_CODE, KERNEL_VERSION macros */
-
+#include <linux/moduleparam.h>
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs.h>
 #endif
@@ -29,6 +29,9 @@ struct cred* ksu_cred;
 #include "dynamic_manager.h"
 #include "sucompat.h"
 #include "setuid_hook.h"
+
+int global_namespace_enable;
+module_param(global_namespace_enable, int, S_IRUSR | S_IWUSR);
 
 void sukisu_custom_config_init(void)
 {
