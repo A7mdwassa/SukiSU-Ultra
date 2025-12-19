@@ -30,8 +30,8 @@ struct cred* ksu_cred;
 #include "sucompat.h"
 #include "setuid_hook.h"
 
-int global_namespace_enable;
-module_param(global_namespace_enable, int, S_IRUSR | S_IWUSR);
+//int global_namespace_enable;
+//module_param(global_namespace_enable, int, S_IRUSR | S_IWUSR);
 
 void sukisu_custom_config_init(void)
 {
