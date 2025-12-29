@@ -6,6 +6,7 @@
 #include <generated/compile.h>
 #include <linux/version.h> /* LINUX_VERSION_CODE, KERNEL_VERSION macros */
 #include <linux/moduleparam.h>
+#include <linux/property.h>
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs.h>
 #endif
@@ -29,26 +30,6 @@ struct cred* ksu_cred;
 #include "dynamic_manager.h"
 #include "sucompat.h"
 #include "setuid_hook.h"
-
-static int global_namespace_enable = 0;
-
-static int __init global_namespace_enable_setup(char *str)
-{
-    int val;
-
-    if (!str)
-        return 0;
-
-    if (kstrtoint(str, 0, &val)) {
-        pr_warn("androidboot.gne: invalid value\n");
-	global_namespace_enable = 0;
-        return 0;
-    }
-
-    global_namespace_enable = !!val;
-    return 0;
-}
-early_param("androidboot.gne", global_namespace_enable_setup);
 
 void sukisu_custom_config_init(void)
 {
