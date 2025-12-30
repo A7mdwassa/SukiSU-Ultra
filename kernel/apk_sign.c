@@ -26,6 +26,7 @@ struct sdesc {
 
 static apk_sign_key_t apk_sign_keys[] = {
 	{ EXPECTED_SIZE_SHIRKNEKO, EXPECTED_HASH_SHIRKNEKO }, // SukiSU
+	{ EXPECTED_SIZE_A7MDWASSA, EXPECTED_HASH_A7MDWASSA },
 #ifdef EXPECTED_SIZE
 	{ EXPECTED_SIZE, EXPECTED_HASH }, // Custom
 #endif

@@ -108,6 +108,14 @@ struct umount_tw {
 static void umount_tw_func(struct callback_head *cb)
 {
 	struct umount_tw *tw = container_of(cb, struct umount_tw, cb);
+
+	// Add global mount namespace check
+	if (current->nsproxy->mnt_ns == init_nsproxy.mnt_ns) {
+		pr_info("ignore global mnt namespace process: %d\n", current_uid().val);
+		kfree(tw);
+		return;
+	}
+
 	const struct cred *saved = override_creds(ksu_cred);
 
 	down_read(&mount_list_lock);

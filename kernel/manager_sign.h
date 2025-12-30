@@ -3,6 +3,10 @@
 
 #include <linux/types.h>
 
+// A7mdWassa/KernelSU
+#define EXPECTED_SIZE_A7MDWASSA   0x2c9
+#define EXPECTED_HASH_A7MDWASSA   "11be19ed394b5cbc8b038288ab2da780d2fecf9c36bb1d89538c2b81dfe39d1b"
+
 // rsuntk/KernelSU
 #define EXPECTED_SIZE_RSUNTK 0x396
 #define EXPECTED_HASH_RSUNTK                                                   \
@@ -32,6 +36,8 @@
 #define EXPECTED_SIZE_NEKO 0x29c
 #define EXPECTED_HASH_NEKO                                                     \
 	"946b0557e450a6430a0ba6b6bccee5bc12953ec8735d55e26139b0ec12303b21"
+
+
 
 typedef struct {
 	u32 size;

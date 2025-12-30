@@ -1,0 +1,130 @@
+From f36777e61e3720ef4e4217b2bb472b560fb90efd Mon Sep 17 00:00:00 2001
+From: A7mdwassa <ahmdwassam112@gmail.com>
+Date: Mon, 29 Dec 2025 21:18:13 +0200
+Subject: [PATCH] use appid instaed of uid
+
+---
+ kernel/allowlist.c | 46 +++++++++++++++++++++++++---------------------
+ 1 files changed, 26 insertions(+), 41 deletions(-)
+
+diff --git a/kernel/allowlist.c b/kernel/allowlist.c
+index 6fdf9a107..319fc1a0f 100644
+--- a/kernel/allowlist.c
++++ b/kernel/allowlist.c
+@@ -45,6 +45,11 @@ static int allow_list_arr[PAGE_SIZE / sizeof(int)] __read_mostly
+ 	__aligned(PAGE_SIZE);
+ static int allow_list_pointer __read_mostly = 0;
+ 
++static inline uid_t ksu_uid_to_appid(uid_t uid)
++{
++	return uid % 100000;
++}
++
+ static void remove_uid_from_arr(uid_t uid)
+ {
+ 	int *temp_arr;
+@@ -141,7 +146,7 @@ bool ksu_get_app_profile(struct app_profile *profile)
+ 
+ 	list_for_each (pos, &allow_list) {
+ 		p = list_entry(pos, struct perm_data, list);
+-		uid_match = profile->current_uid == p->profile.current_uid;
++		uid_match = ksu_uid_to_appid(profile->current_uid) == ksu_uid_to_appid(p->profile.current_uid);
+ 		if (uid_match) {
+ 			// found it, override it with ours
+ 			memcpy(profile, &p->profile, sizeof(*profile));
+@@ -190,6 +195,7 @@ bool ksu_set_app_profile(struct app_profile *profile, bool persist)
+ 	struct perm_data *p = NULL;
+ 	struct list_head *pos = NULL;
+ 	bool result = false;
++	uid_t appid;
+ 
+ 	if (!profile_valid(profile)) {
+ 		pr_err("Failed to set app profile: invalid profile!\n");
+@@ -229,28 +235,24 @@ bool ksu_set_app_profile(struct app_profile *profile, bool persist)
+ 	list_add_tail(&p->list, &allow_list);
+ 
+ out:
+-	if (profile->current_uid <= BITMAP_UID_MAX) {
++	appid = ksu_uid_to_appid(profile->current_uid);
++
++	if (appid <= BITMAP_UID_MAX) {
+ 		if (profile->allow_su)
+-			allow_list_bitmap[profile->current_uid / BITS_PER_BYTE] |=
+-				1 << (profile->current_uid % BITS_PER_BYTE);
++			allow_list_bitmap[appid / BITS_PER_BYTE] |=
++				1 << (appid % BITS_PER_BYTE);
+ 		else
+-			allow_list_bitmap[profile->current_uid / BITS_PER_BYTE] &=
+-				~(1 << (profile->current_uid % BITS_PER_BYTE));
++			allow_list_bitmap[appid / BITS_PER_BYTE] &=
++				~(1 << (appid % BITS_PER_BYTE));
+ 	} else {
+ 		if (profile->allow_su) {
+-			/*
+-			 * 1024 apps with uid higher than BITMAP_UID_MAX
+-			 * registered to request superuser?
+-			 */
+ 			if (allow_list_pointer >= ARRAY_SIZE(allow_list_arr)) {
+ 				pr_err("too many apps registered\n");
+-				WARN_ON(1);
+ 				return false;
+ 			}
+-			allow_list_arr[allow_list_pointer++] =
+-				profile->current_uid;
++			allow_list_arr[allow_list_pointer++] = appid;
+ 		} else {
+-			remove_uid_from_arr(profile->current_uid);
++			remove_uid_from_arr(appid);
+ 		}
+ 	}
+ 	result = true;
+@@ -282,24 +284,26 @@ bool ksu_set_app_profile(struct app_profile *profile, bool persist)
+ bool __ksu_is_allow_uid(uid_t uid)
+ {
+ 	int i;
++	uid_t appid;
+ 
+ 	if (forbid_system_uid(uid)) {
+ 		// do not bother going through the list if it's system
+ 		return false;
+ 	}
+ 
++	appid = ksu_uid_to_appid(uid);
++
+ 	if (likely(ksu_is_manager_uid_valid()) &&
+ 		unlikely(ksu_get_manager_uid() == uid)) {
+-		// manager is always allowed!
+ 		return true;
+ 	}
+ 
+-	if (likely(uid <= BITMAP_UID_MAX)) {
+-		return !!(allow_list_bitmap[uid / BITS_PER_BYTE] &
+-			  (1 << (uid % BITS_PER_BYTE)));
++	if (likely(appid <= BITMAP_UID_MAX)) {
++		return !!(allow_list_bitmap[appid / BITS_PER_BYTE] &
++			  (1 << (appid % BITS_PER_BYTE)));
+ 	} else {
+ 		for (i = 0; i < allow_list_pointer; i++) {
+-			if (allow_list_arr[i] == uid)
++			if (allow_list_arr[i] == appid)
+ 				return true;
+ 		}
+ 	}
+@@ -351,7 +355,7 @@ struct root_profile *ksu_get_root_profile(uid_t uid)
+ 
+ 	list_for_each (pos, &allow_list) {
+ 		p = list_entry(pos, struct perm_data, list);
+-		if (uid == p->profile.current_uid && p->profile.allow_su) {
++		if (ksu_uid_to_appid(uid) == ksu_uid_to_appid(p->profile.current_uid) && p->profile.allow_su) {
+ 			if (!p->profile.rp_config.use_default) {
+ 				return &p->profile.rp_config.profile;
+ 			}
+@@ -522,7 +526,7 @@ void ksu_prune_allowlist(bool (*is_uid_valid)(uid_t, char *, void *),
+ 	// TODO: use RCU!
+ 	mutex_lock(&allowlist_mutex);
+ 	list_for_each_entry_safe (np, n, &allow_list, list) {
+-		uid_t uid = np->profile.current_uid;
++		uid_t uid = ksu_uid_to_appid(np->profile.current_uid);
+ 		char *package = np->profile.key;
+ 		// we use this uid for special cases, don't prune it!
+ 		bool is_preserved_uid = uid == KSU_APP_PROFILE_PRESERVE_UID;
